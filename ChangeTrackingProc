@@ -1,0 +1,45 @@
+ALTER PROC  [dbo].[GetBaseTable]
+(
+    @last_sync_version BIGINT = -1
+   ,@LatestVersionNo   BIGINT OUT
+)
+AS
+    BEGIN
+
+        SET TRANSACTION ISOLATION LEVEL SNAPSHOT;
+        SET NOCOUNT ON;
+
+        DECLARE @min_valid_version	BIGINT = CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('dbo.BaseTable'));
+        DECLARE @newVersion			BIGINT = CHANGE_TRACKING_CURRENT_VERSION();
+
+
+        SET @LatestVersionNo = @newVersion;
+
+        IF (
+               (@last_sync_version IS NULL)
+          OR    (@last_sync_version = -1)
+          OR    (@last_sync_version < @min_valid_version)
+           )
+            BEGIN
+
+              SELECT 
+				   i.Id
+				  ,i.[Name]
+			  FROM [dbo].[BaseTable]		 AS i
+			
+            END;
+        ELSE
+            BEGIN
+				           
+			  SELECT 
+				   i_c.Id
+				  ,i.[Name]				  
+			  FROM CHANGETABLE(CHANGES dbo.BaseTable, @last_sync_version)	AS i_c													
+			  JOIN dbo.BaseTable											AS i  ON i.Id = i_c.Id		  
+			  WHERE 
+					i_c.SYS_CHANGE_VERSION <= @newVersion
+				AND i_c.SYS_CHANGE_OPERATION <> 'D'
+				            
+            END;
+       
+    END;
